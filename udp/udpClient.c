@@ -1,32 +1,58 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#define SERVER "127.0.0.1"
+#define BUFLEN 512
+#define PORT 8888
 
-void main(int argc, char **argv){
-  if(argc != 2){
-    printf("Usage: %s <port>\n", argv[0]);
-    exit(0);
-  }
+void die(char *s)
+{
+    perror(s);
+    exit(1);
+}
 
-  int port = atoi(argv[1]);
-  int sockfd;
-  struct sockaddr_in serverAddr;
-  char buffer[1024];
-  socklen_t addr_size;
+int main(void)
+{
+    struct sockaddr_in server;
+    int s, i;
+    socklen_t slen = sizeof(server);
+    char buf[BUFLEN];
+    char message[BUFLEN];
 
-  sockfd = socket(PF_INET, SOCK_DGRAM, 0);
-  memset(&serverAddr, '\0', sizeof(serverAddr));
+    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+    {
+        die("socket");
+    }
 
-  serverAddr.sin_family = AF_INET;
-  serverAddr.sin_port = htons(port);
-  serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    memset((char *)&server, 0, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
 
-  strcpy(buffer, "Hello Server\n");
-  sendto(sockfd, buffer, 1024, 0, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
-  printf("[+]Data Send: %s", buffer);
+    if (inet_aton(SERVER, &server.sin_addr) == 0)
+    {
+        fprintf(stderr, "inet_aton() failed\n");
+        exit(1);
+    }
 
+    while (1)
+    {
+        printf("Enter message : ");
+        gets(message);
+        if (sendto(s, message, strlen(message), 0, (struct sockaddr *)&server, slen) == -1)
+        {
+            die("sendto()");
+        }
+        memset(buf, '\0', BUFLEN);
+        if (recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&server, &slen) == -1)
+        {
+            die("recvfrom()");
+        }
+        puts(buf);
+    }
+
+    close(s);
+    return 0;
 }

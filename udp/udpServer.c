@@ -1,33 +1,56 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
+#include <stdlib.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#define BUFLEN 512
+#define PORT 8888
 
-void main(int argc, char **argv){
-  if(argc != 2){
-    printf("Usage: %s <port>\n", argv[0]);
-    exit(0);
-  }
+void die(char *s)
+{
+    perror(s);
+    exit(1);
+}
 
-  int port = atoi(argv[1]);
-  int sockfd;
-  struct sockaddr_in si_me, si_other;
-  char buffer[1024];
-  socklen_t addr_size;
+int main(void)
+{
+    struct sockaddr_in server, client;
+    int s, i, recv_len;
+    socklen_t slen = sizeof(server);
+    char buf[BUFLEN];
 
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+    {
+        die("socket");
+    }
 
-  memset(&si_me, '\0', sizeof(si_me));
-  si_me.sin_family = AF_INET;
-  si_me.sin_port = htons(port);
-  si_me.sin_addr.s_addr = inet_addr("127.0.0.1");
+    memset((char *)&server, 0, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  bind(sockfd, (struct sockaddr*)&si_me, sizeof(si_me));
-  addr_size = sizeof(si_other);
-  recvfrom(sockfd, buffer, 1024, 0, (struct sockaddr*)& si_other, &addr_size);
-  printf("[+]Data Received: %s", buffer);
+    if (bind(s, (struct sockaddr *)&server, sizeof(server)) == -1)
+    {
+        die("bind");
+    }
 
+    while (1)
+    {
+        printf("Waiting for data...");
+        fflush(stdout);
+        if ((recv_len = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&client, &slen)) == -1)
+        {
+            die("recvfrom()");
+        }
+        printf("Received packet from %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+        printf("Data: %s\n", buf);
+        if (sendto(s, buf, recv_len, 0, (struct sockaddr *)&client, slen) == -1)
+        {
+            die("sendto()");
+        }
+    }
+
+    close(s);
+    return 0;
 }
